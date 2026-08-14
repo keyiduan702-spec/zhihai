@@ -11,11 +11,6 @@ const nav: { id: View; label: string; icon: string }[] = [
   { id: "search", label: "搜索", icon: "⌕" },
 ];
 
-const days = [
-  ...Array(5).fill(null),
-  ...Array.from({ length: 31 }, (_, i) => i + 1),
-];
-
 const marked: Record<number, ("study" | "review")[]> = {
   2: ["study"], 4: ["review"], 6: ["study"], 7: ["study", "review"],
   9: ["study"], 11: ["review"], 12: ["study"], 14: ["study", "review"],
@@ -30,14 +25,33 @@ const reviewItems = [
 ];
 
 export default function Home() {
+  const today = new Date();
   const [view, setView] = useState<View>("calendar");
-  const [selectedDay, setSelectedDay] = useState(14);
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(() => today);
   const [query, setQuery] = useState("");
   const [done, setDone] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const title = nav.find((item) => item.id === view)?.label;
+  const calendarDays = useMemo(() => {
+    const leadingDays = (visibleMonth.getDay() + 6) % 7;
+    const dayCount = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+    return [...Array(leadingDays).fill(null), ...Array.from({ length: dayCount }, (_, i) => i + 1)];
+  }, [visibleMonth]);
+  const selectedWeekday = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][selectedDate.getDay()];
+  const isToday = selectedDate.toDateString() === today.toDateString();
+  const changeMonth = (offset: number) => {
+    const nextMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + offset, 1);
+    setVisibleMonth(nextMonth);
+    setSelectedDate(nextMonth);
+  };
+  const goToToday = () => {
+    const now = new Date();
+    setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDate(now);
+  };
   const searchResults = useMemo(() => {
     const all = ["React 状态管理", "间隔重复与记忆曲线", "TypeScript 泛型", "CSS Grid 响应式布局"];
     return query ? all.filter((item) => item.toLowerCase().includes(query.toLowerCase())) : all.slice(0, 3);
@@ -72,12 +86,12 @@ export default function Home() {
         {view === "calendar" && (
           <div className="calendar-layout">
             <section className="card calendar-card">
-              <div className="calendar-head"><div><button aria-label="上个月">‹</button><h2>2026年 8月</h2><button aria-label="下个月">›</button></div><button className="today" onClick={() => setSelectedDay(14)}>今天</button></div>
+              <div className="calendar-head"><div><button aria-label="上个月" onClick={() => changeMonth(-1)}>‹</button><h2>{visibleMonth.getFullYear()}年 {visibleMonth.getMonth() + 1}月</h2><button aria-label="下个月" onClick={() => changeMonth(1)}>›</button></div><button className="today" onClick={goToToday}>今天</button></div>
               <div className="week-row">{["一", "二", "三", "四", "五", "六", "日"].map((d) => <span key={d}>{d}</span>)}</div>
               <div className="days-grid">
-                {days.map((day, i) => day ? (
-                  <button key={i} className={`day ${day === selectedDay ? "selected" : ""} ${day === 14 ? "current" : ""}`} onClick={() => setSelectedDay(day)}>
-                    <span>{day}</span><div className="dots">{marked[day]?.map((kind) => <i key={kind} className={kind} />)}</div>
+                {calendarDays.map((day, i) => day ? (
+                  <button key={i} className={`day ${day === selectedDate.getDate() ? "selected" : ""} ${day === today.getDate() && visibleMonth.getMonth() === today.getMonth() && visibleMonth.getFullYear() === today.getFullYear() ? "current" : ""}`} onClick={() => setSelectedDate(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day))}>
+                    <span>{day}</span><div className="dots">{visibleMonth.getFullYear() === 2026 && visibleMonth.getMonth() === 7 && marked[day]?.map((kind) => <i key={kind} className={kind} />)}</div>
                   </button>
                 ) : <span className="day empty" key={i} />)}
               </div>
@@ -85,7 +99,7 @@ export default function Home() {
             </section>
 
             <aside className="details card">
-              <div className="date-block"><div><strong>{selectedDay}</strong><span>八月<br />星期五</span></div>{selectedDay === 14 && <em>今天</em>}</div>
+              <div className="date-block"><div><strong>{selectedDate.getDate()}</strong><span>{selectedDate.getMonth() + 1}月<br />{selectedWeekday}</span></div>{isToday && <em>今天</em>}</div>
               <div className="stats"><div><strong>2</strong><span>学习记录</span></div><div><strong>3</strong><span>复习任务</span></div></div>
               <section className="detail-section"><div className="section-title"><h3><i className="study" />今日学习</h3><button>查看全部</button></div>
                 <article className="study-item"><div className="item-head"><strong>TypeScript 泛型</strong><span className="tag green">熟悉</span></div><p>理解泛型约束、条件类型与常用工具类型的实现方式。</p><div className="item-foot"><span>▤ 2 篇笔记</span><span>下一次复习：明天</span></div></article>
