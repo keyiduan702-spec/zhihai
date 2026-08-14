@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 
 type View = "calendar" | "review" | "notes" | "search";
 type Note = { id: number; title: string; content: string; createdAt: string; updatedAt: string };
@@ -85,6 +85,27 @@ export default function Home() {
     setNewNoteContent("");
     setShowNoteForm(false);
     setNoteStatus("");
+  };
+  const importNotes = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    const supported = files.filter((file) => /\.(md|txt)$/i.test(file.name));
+    const imported: Note[] = [];
+
+    for (const file of supported) {
+      const content = await file.text();
+      const title = file.name.replace(/\.(md|txt)$/i, "");
+      const response = await fetch("/api/notes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title, content }) });
+      const data = await response.json() as { note?: Note; error?: string };
+      if (data.note) imported.push(data.note);
+    }
+
+    if (imported.length) {
+      setNotes((current) => [...imported.reverse(), ...current]);
+      openNote(imported[0]);
+    }
+    const skipped = files.length - supported.length;
+    setNoteStatus(`${imported.length} 篇已导入${skipped ? `，${skipped} 个不支持的文件已跳过` : ""}`);
+    event.target.value = "";
   };
   const saveNote = async () => {
     if (!activeNote) return;
@@ -176,7 +197,7 @@ export default function Home() {
 
         {view === "review" && <div className="content-card card"><div className="content-heading"><div><span className="eyebrow">TODAY'S REVIEW</span><h2>让记忆，在恰好的时间重逢</h2><p>暂无待复习内容。添加学习记录后，这里会生成复习任务。</p></div><div className="progress-ring"><strong>{done.length}</strong><span>/ {reviewItems.length}</span></div></div><div className="review-list">{reviewItems.length > 0 ? reviewItems.map((item, i) => <article key={item.title} className={done.includes(item.title) ? "review-row completed" : "review-row"}><div className="index">0{i + 1}</div><div className="review-copy"><strong>{item.title}</strong><span>{item.meta}</span></div><span className="tag amber">{item.level}</span><span className={item.urgent ? "overdue" : "due"}>{item.due}</span><button onClick={() => setDone((d) => d.includes(item.title) ? d.filter(x => x !== item.title) : [...d, item.title])}>{done.includes(item.title) ? "已完成 ✓" : "开始复习 →"}</button></article>) : <div className="notes-empty">暂无复习任务</div>}</div></div>}
 
-        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><div className="panel-actions"><span>{notes.length} 篇</span><button className="note-add" onClick={() => setShowNoteForm(true)}>新增</button>{notes.length > 0 && <button onClick={clearNotes}>清空全部</button>}</div></div>{notes.length > 0 ? notes.map((note) => <div className={note.id === activeNoteId ? "note-row active" : "note-row"} key={note.id}><button className="note-open" onClick={() => openNote(note)}><span className="file-icon">MD</span><span><strong>{note.title}</strong><small>{new Date(note.updatedAt).toLocaleString("zh-CN")}</small></span><span>›</span></button><button className="note-delete" aria-label={`删除 ${note.title}`} onClick={() => deleteNote(note)}>删除</button></div>) : <div className="notes-empty">{noteStatus}</div>}</section>{activeNote ? <article className="card markdown note-editor"><div className="markdown-top"><div><strong>{activeNote.title}.md</strong><span>{noteStatus || "内容自动保存在本地 D1 数据库"}</span></div><button onClick={saveNote}>保存</button></div><span className="crumb">学习笔记 / 本地知识库</span><label>标题<input className="note-title-editor" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label>正文<textarea className="note-content-editor" value={draftContent} onChange={(event) => setDraftContent(event.target.value)} placeholder="输入 Markdown 或普通文字…" /></label></article> : <section className="card note-empty-detail"><strong>暂无笔记</strong><span>点击左侧“新增”创建第一篇笔记。</span></section>}</div>}
+        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><div className="panel-actions"><span>{notes.length} 篇</span><button className="note-add" onClick={() => setShowNoteForm(true)}>新增</button><label className="note-import">导入文件<input type="file" accept=".md,.txt,text/markdown,text/plain" multiple onChange={importNotes} /></label>{notes.length > 0 && <button onClick={clearNotes}>清空全部</button>}</div></div>{notes.length > 0 ? notes.map((note) => <div className={note.id === activeNoteId ? "note-row active" : "note-row"} key={note.id}><button className="note-open" onClick={() => openNote(note)}><span className="file-icon">MD</span><span><strong>{note.title}</strong><small>{new Date(note.updatedAt).toLocaleString("zh-CN")}</small></span><span>›</span></button><button className="note-delete" aria-label={`删除 ${note.title}`} onClick={() => deleteNote(note)}>删除</button></div>) : <div className="notes-empty">{noteStatus}</div>}</section>{activeNote ? <article className="card markdown note-editor"><div className="markdown-top"><div><strong>{activeNote.title}.md</strong><span>{noteStatus || "内容自动保存在本地 D1 数据库"}</span></div><button onClick={saveNote}>保存</button></div><span className="crumb">学习笔记 / 本地知识库</span><label>标题<input className="note-title-editor" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label>正文<textarea className="note-content-editor" value={draftContent} onChange={(event) => setDraftContent(event.target.value)} placeholder="输入 Markdown 或普通文字…" /></label></article> : <section className="card note-empty-detail"><strong>暂无笔记</strong><span>点击“新增”或“导入文件”创建第一篇笔记。</span></section>}</div>}
 
         {view === "search" && <div className="content-card card search-view"><span className="eyebrow">SEARCH YOUR OCEAN</span><h2>找回曾经学过的每一片知识</h2><div className="search-box"><span>⌕</span><input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索主题、内容、文件名或 Markdown 正文…" /><kbd>Enter</kbd></div><p className="result-count">{query ? `找到 ${searchResults.length} 条与“${query}”相关的内容` : "暂无笔记"}</p>{searchResults.map((r, i) => <article className="search-result" key={r}><span className="file-icon">MD</span><div><strong>{r}</strong><p>{i === 0 ? "相关笔记内容摘要。" : "学习记录与 Markdown 笔记中的相关内容摘要。"}</p><small>notes/{r}.md</small></div><span className="tag green">熟悉</span></article>)}</div>}
       </section>
