@@ -35,6 +35,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [done, setDone] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const title = nav.find((item) => item.id === view)?.label;
   const searchResults = useMemo(() => {
@@ -53,7 +54,14 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-footer"><div className="avatar">林</div><div><strong>林知远</strong><small>连续学习 18 天</small></div><button aria-label="更多设置">···</button></div>
+        <div className="sidebar-footer">
+          <div className="avatar">少</div><div><strong>少年游</strong><small>连续学习 18 天</small></div>
+          <button className="more-button" aria-label="更多设置" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>···</button>
+          {menuOpen && <><button className="menu-dismiss" aria-label="关闭个人菜单" onClick={() => setMenuOpen(false)} /><div className="profile-menu" role="menu">
+            {["账号设置", "修改密码", "微信提醒设置"].map((item) => <button role="menuitem" key={item} onClick={() => setMenuOpen(false)}>{item}<span>›</span></button>)}
+            <button role="menuitem" className="logout" onClick={() => setMenuOpen(false)}>退出登录</button>
+          </div></>}
+        </div>
       </aside>
 
       <section className="main-panel">
