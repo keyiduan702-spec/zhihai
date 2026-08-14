@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
 type View = "calendar" | "review" | "notes" | "search";
+type Note = { id: number; title: string; content: string; createdAt: string; updatedAt: string };
 
 const nav: { id: View; label: string; icon: string }[] = [
   { id: "calendar", label: "月历", icon: "▦" },
@@ -15,8 +17,6 @@ const marked: Record<number, ("study" | "review")[]> = {};
 
 const reviewItems: { title: string; meta: string; level: string; due: string; urgent: boolean }[] = [];
 
-const initialNotes: string[] = [];
-
 export default function Home() {
   const today = new Date();
   const [view, setView] = useState<View>("calendar");
@@ -26,10 +26,17 @@ export default function Home() {
   const [done, setDone] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [notes, setNotes] = useState(initialNotes);
-  const [activeNote, setActiveNote] = useState(initialNotes[0]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<number | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftContent, setDraftContent] = useState("");
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [noteStatus, setNoteStatus] = useState("正在读取笔记…");
 
   const title = nav.find((item) => item.id === view)?.label;
+  const activeNote = notes.find((note) => note.id === activeNoteId) ?? null;
   const calendarDays = useMemo(() => {
     const leadingDays = (visibleMonth.getDay() + 6) % 7;
     const dayCount = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
@@ -47,17 +54,66 @@ export default function Home() {
     setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     setSelectedDate(now);
   };
-  const deleteNote = (note: string) => {
-    setNotes((current) => {
-      const remaining = current.filter((item) => item !== note);
-      if (activeNote === note) setActiveNote(remaining[0] ?? "");
-      return remaining;
-    });
+  useEffect(() => {
+    fetch("/api/notes")
+      .then((response) => response.json())
+      .then((data: { notes?: Note[]; error?: string }) => {
+        if (!data.notes) throw new Error(data.error ?? "读取笔记失败");
+        setNotes(data.notes);
+        setNoteStatus(data.notes.length ? "" : "暂无笔记");
+        if (data.notes[0]) {
+          setActiveNoteId(data.notes[0].id);
+          setDraftTitle(data.notes[0].title);
+          setDraftContent(data.notes[0].content);
+        }
+      })
+      .catch((error: Error) => setNoteStatus(error.message));
+  }, []);
+  const openNote = (note: Note) => {
+    setActiveNoteId(note.id);
+    setDraftTitle(note.title);
+    setDraftContent(note.content);
   };
-  const clearNotes = () => {
+  const createNote = async (event: FormEvent) => {
+    event.preventDefault();
+    const response = await fetch("/api/notes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: newNoteTitle, content: newNoteContent }) });
+    const data = await response.json() as { note?: Note; error?: string };
+    if (!data.note) return setNoteStatus(data.error ?? "新建笔记失败");
+    setNotes((current) => [data.note!, ...current]);
+    openNote(data.note);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setShowNoteForm(false);
+    setNoteStatus("");
+  };
+  const saveNote = async () => {
+    if (!activeNote) return;
+    const response = await fetch("/api/notes", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: activeNote.id, title: draftTitle, content: draftContent }) });
+    const data = await response.json() as { note?: Note; error?: string };
+    if (!data.note) return setNoteStatus(data.error ?? "保存失败");
+    setNotes((current) => current.map((note) => note.id === data.note!.id ? data.note! : note));
+    setNoteStatus("已保存");
+  };
+  const deleteNote = async (note: Note) => {
+    await fetch("/api/notes", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: note.id }) });
+    const remaining = notes.filter((item) => item.id !== note.id);
+    setNotes(remaining);
+    if (activeNoteId === note.id) {
+      const next = remaining[0] ?? null;
+      setActiveNoteId(next?.id ?? null);
+      setDraftTitle(next?.title ?? "");
+      setDraftContent(next?.content ?? "");
+    }
+    setNoteStatus(remaining.length ? "" : "暂无笔记");
+  };
+  const clearNotes = async () => {
     if (!window.confirm("确定删除全部笔记吗？")) return;
+    await fetch("/api/notes", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ all: true }) });
     setNotes([]);
-    setActiveNote("");
+    setActiveNoteId(null);
+    setDraftTitle("");
+    setDraftContent("");
+    setNoteStatus("暂无笔记");
   };
   const searchResults = useMemo(() => {
     const all: string[] = [];
@@ -120,12 +176,13 @@ export default function Home() {
 
         {view === "review" && <div className="content-card card"><div className="content-heading"><div><span className="eyebrow">TODAY'S REVIEW</span><h2>让记忆，在恰好的时间重逢</h2><p>暂无待复习内容。添加学习记录后，这里会生成复习任务。</p></div><div className="progress-ring"><strong>{done.length}</strong><span>/ {reviewItems.length}</span></div></div><div className="review-list">{reviewItems.length > 0 ? reviewItems.map((item, i) => <article key={item.title} className={done.includes(item.title) ? "review-row completed" : "review-row"}><div className="index">0{i + 1}</div><div className="review-copy"><strong>{item.title}</strong><span>{item.meta}</span></div><span className="tag amber">{item.level}</span><span className={item.urgent ? "overdue" : "due"}>{item.due}</span><button onClick={() => setDone((d) => d.includes(item.title) ? d.filter(x => x !== item.title) : [...d, item.title])}>{done.includes(item.title) ? "已完成 ✓" : "开始复习 →"}</button></article>) : <div className="notes-empty">暂无复习任务</div>}</div></div>}
 
-        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><div className="panel-actions"><span>{notes.length} 篇</span>{notes.length > 0 && <button onClick={clearNotes}>清空全部</button>}</div></div>{notes.length > 0 ? notes.map((n, i) => <div className={n === activeNote ? "note-row active" : "note-row"} key={n}><button className="note-open" onClick={() => setActiveNote(n)}><span className="file-icon">MD</span><span><strong>{n}</strong><small>更新于 {i + 10} 日 · v{i + 2}</small></span><span>›</span></button><button className="note-delete" aria-label={`删除 ${n}`} onClick={() => deleteNote(n)}>删除</button></div>) : <div className="notes-empty">暂无笔记</div>}</section>{activeNote ? <article className="card markdown"><div className="markdown-top"><div><strong>{activeNote}.md</strong><span>最新版 · v3</span></div><button>历史版本</button></div><span className="crumb">学习笔记 / 前端工程</span><h1>{activeNote}</h1><p>这里展示当前笔记的正文内容。删除笔记后，列表和详情会同步更新。</p><h2>内容示例</h2><pre><code>{`function getLength<T extends { length: number }>(arg: T) {\n  return arg.length;\n}`}</code></pre><blockquote>关键点：持续记录，让知识逐渐形成体系。</blockquote></article> : <section className="card note-empty-detail"><strong>暂无笔记</strong><span>添加学习记录后，可在这里整理知识。</span></section>}</div>}
+        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><div className="panel-actions"><span>{notes.length} 篇</span><button className="note-add" onClick={() => setShowNoteForm(true)}>新增</button>{notes.length > 0 && <button onClick={clearNotes}>清空全部</button>}</div></div>{notes.length > 0 ? notes.map((note) => <div className={note.id === activeNoteId ? "note-row active" : "note-row"} key={note.id}><button className="note-open" onClick={() => openNote(note)}><span className="file-icon">MD</span><span><strong>{note.title}</strong><small>{new Date(note.updatedAt).toLocaleString("zh-CN")}</small></span><span>›</span></button><button className="note-delete" aria-label={`删除 ${note.title}`} onClick={() => deleteNote(note)}>删除</button></div>) : <div className="notes-empty">{noteStatus}</div>}</section>{activeNote ? <article className="card markdown note-editor"><div className="markdown-top"><div><strong>{activeNote.title}.md</strong><span>{noteStatus || "内容自动保存在本地 D1 数据库"}</span></div><button onClick={saveNote}>保存</button></div><span className="crumb">学习笔记 / 本地知识库</span><label>标题<input className="note-title-editor" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label>正文<textarea className="note-content-editor" value={draftContent} onChange={(event) => setDraftContent(event.target.value)} placeholder="输入 Markdown 或普通文字…" /></label></article> : <section className="card note-empty-detail"><strong>暂无笔记</strong><span>点击左侧“新增”创建第一篇笔记。</span></section>}</div>}
 
         {view === "search" && <div className="content-card card search-view"><span className="eyebrow">SEARCH YOUR OCEAN</span><h2>找回曾经学过的每一片知识</h2><div className="search-box"><span>⌕</span><input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索主题、内容、文件名或 Markdown 正文…" /><kbd>Enter</kbd></div><p className="result-count">{query ? `找到 ${searchResults.length} 条与“${query}”相关的内容` : "暂无笔记"}</p>{searchResults.map((r, i) => <article className="search-result" key={r}><span className="file-icon">MD</span><div><strong>{r}</strong><p>{i === 0 ? "相关笔记内容摘要。" : "学习记录与 Markdown 笔记中的相关内容摘要。"}</p><small>notes/{r}.md</small></div><span className="tag green">熟悉</span></article>)}</div>}
       </section>
 
       {showAdd && <div className="modal-backdrop" onMouseDown={() => setShowAdd(false)}><form className="modal" onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); setShowAdd(false); }}><button type="button" className="close" onClick={() => setShowAdd(false)}>×</button><span className="eyebrow">NEW LEARNING</span><h2>记录今天学到的知识</h2><label>学习主题<input required placeholder="例如：TypeScript 泛型" /></label><label>具体内容<textarea required placeholder="简要记录今天学习的内容…" /></label><label>掌握程度<div className="level-options">{["陌生", "模糊", "熟悉", "掌握"].map((x) => <button type="button" key={x}>{x}</button>)}</div></label><button className="primary submit">保存并生成复习计划</button></form></div>}
+      {showNoteForm && <div className="modal-backdrop"><form className="modal" onSubmit={createNote}><button type="button" className="close" onClick={() => setShowNoteForm(false)}>×</button><span className="eyebrow">NEW NOTE</span><h2>新建笔记</h2><label>标题<input required value={newNoteTitle} onChange={(event) => setNewNoteTitle(event.target.value)} placeholder="输入笔记标题" /></label><label>正文<textarea value={newNoteContent} onChange={(event) => setNewNoteContent(event.target.value)} placeholder="输入 Markdown 或普通文字…" /></label><button className="primary submit">保存笔记</button></form></div>}
     </main>
   );
 }
