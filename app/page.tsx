@@ -24,7 +24,7 @@ const reviewItems = [
   { title: "TypeScript 泛型", meta: "第 1 次复习 · 上次 8月13日", level: "陌生", due: "今日到期", urgent: false },
 ];
 
-const initialNotes = ["TypeScript 泛型", "React 状态管理", "间隔重复与记忆曲线", "CSS Grid 响应式布局"];
+const initialNotes: string[] = [];
 
 export default function Home() {
   const today = new Date();
