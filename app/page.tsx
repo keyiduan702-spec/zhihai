@@ -24,6 +24,8 @@ const reviewItems = [
   { title: "TypeScript 泛型", meta: "第 1 次复习 · 上次 8月13日", level: "陌生", due: "今日到期", urgent: false },
 ];
 
+const initialNotes = ["TypeScript 泛型", "React 状态管理", "间隔重复与记忆曲线", "CSS Grid 响应式布局"];
+
 export default function Home() {
   const today = new Date();
   const [view, setView] = useState<View>("calendar");
@@ -33,6 +35,8 @@ export default function Home() {
   const [done, setDone] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notes, setNotes] = useState(initialNotes);
+  const [activeNote, setActiveNote] = useState(initialNotes[0]);
 
   const title = nav.find((item) => item.id === view)?.label;
   const calendarDays = useMemo(() => {
@@ -51,6 +55,18 @@ export default function Home() {
     const now = new Date();
     setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     setSelectedDate(now);
+  };
+  const deleteNote = (note: string) => {
+    setNotes((current) => {
+      const remaining = current.filter((item) => item !== note);
+      if (activeNote === note) setActiveNote(remaining[0] ?? "");
+      return remaining;
+    });
+  };
+  const clearNotes = () => {
+    if (!window.confirm("确定删除全部笔记吗？")) return;
+    setNotes([]);
+    setActiveNote("");
   };
   const searchResults = useMemo(() => {
     const all = ["React 状态管理", "间隔重复与记忆曲线", "TypeScript 泛型", "CSS Grid 响应式布局"];
@@ -115,7 +131,7 @@ export default function Home() {
 
         {view === "review" && <div className="content-card card"><div className="content-heading"><div><span className="eyebrow">TODAY'S REVIEW</span><h2>让记忆，在恰好的时间重逢</h2><p>3 项待复习，其中 1 项已逾期。完成后重新评估掌握程度。</p></div><div className="progress-ring"><strong>{done.length}</strong><span>/ 3</span></div></div><div className="review-list">{reviewItems.map((item, i) => <article key={item.title} className={done.includes(item.title) ? "review-row completed" : "review-row"}><div className="index">0{i + 1}</div><div className="review-copy"><strong>{item.title}</strong><span>{item.meta}</span></div><span className="tag amber">{item.level}</span><span className={item.urgent ? "overdue" : "due"}>{item.due}</span><button onClick={() => setDone((d) => d.includes(item.title) ? d.filter(x => x !== item.title) : [...d, item.title])}>{done.includes(item.title) ? "已完成 ✓" : "开始复习 →"}</button></article>)}</div></div>}
 
-        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><span>12 篇</span></div>{["TypeScript 泛型", "React 状态管理", "间隔重复与记忆曲线", "CSS Grid 响应式布局"].map((n, i) => <button className={i === 0 ? "note-row active" : "note-row"} key={n}><span className="file-icon">MD</span><div><strong>{n}</strong><small>更新于 {i + 10} 日 · v{i + 2}</small></div><span>›</span></button>)}</section><article className="card markdown"><div className="markdown-top"><div><strong>TypeScript 泛型.md</strong><span>最新版 · v3</span></div><button>历史版本</button></div><span className="crumb">学习笔记 / 前端工程 / TypeScript</span><h1>TypeScript 泛型</h1><p>泛型允许我们在定义函数、接口或类时，不预先指定具体的类型，而在使用时再确定类型。</p><h2>泛型约束</h2><pre><code>{`function getLength<T extends { length: number }>(arg: T) {\n  return arg.length;\n}`}</code></pre><blockquote>关键点：约束保留了类型信息，同时保证属性安全。</blockquote></article></div>}
+        {view === "notes" && <div className="notes-layout"><section className="card note-list"><div className="panel-title"><div><span className="eyebrow">KNOWLEDGE BASE</span><h2>我的笔记</h2></div><div className="panel-actions"><span>{notes.length} 篇</span>{notes.length > 0 && <button onClick={clearNotes}>清空全部</button>}</div></div>{notes.length > 0 ? notes.map((n, i) => <div className={n === activeNote ? "note-row active" : "note-row"} key={n}><button className="note-open" onClick={() => setActiveNote(n)}><span className="file-icon">MD</span><span><strong>{n}</strong><small>更新于 {i + 10} 日 · v{i + 2}</small></span><span>›</span></button><button className="note-delete" aria-label={`删除 ${n}`} onClick={() => deleteNote(n)}>删除</button></div>) : <div className="notes-empty">暂无笔记</div>}</section>{activeNote ? <article className="card markdown"><div className="markdown-top"><div><strong>{activeNote}.md</strong><span>最新版 · v3</span></div><button>历史版本</button></div><span className="crumb">学习笔记 / 前端工程</span><h1>{activeNote}</h1><p>这里展示当前笔记的正文内容。删除笔记后，列表和详情会同步更新。</p><h2>内容示例</h2><pre><code>{`function getLength<T extends { length: number }>(arg: T) {\n  return arg.length;\n}`}</code></pre><blockquote>关键点：持续记录，让知识逐渐形成体系。</blockquote></article> : <section className="card note-empty-detail"><strong>暂无笔记</strong><span>添加学习记录后，可在这里整理知识。</span></section>}</div>}
 
         {view === "search" && <div className="content-card card search-view"><span className="eyebrow">SEARCH YOUR OCEAN</span><h2>找回曾经学过的每一片知识</h2><div className="search-box"><span>⌕</span><input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索主题、内容、文件名或 Markdown 正文…" /><kbd>Enter</kbd></div><p className="result-count">{query ? `找到 ${searchResults.length} 条与“${query}”相关的内容` : "最近访问"}</p>{searchResults.map((r, i) => <article className="search-result" key={r}><span className="file-icon">MD</span><div><strong>{r}</strong><p>{i === 0 ? "泛型约束可以让类型参数具备必要的结构，同时保留完整的类型推导能力…" : "学习记录与 Markdown 笔记中的相关内容摘要，点击可直接打开并定位。"}</p><small>2026年8月{14 - i}日 · notes/{r}.md</small></div><span className="tag green">熟悉</span></article>)}</div>}
       </section>
