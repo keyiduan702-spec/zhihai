@@ -1,7 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$projectPath = "D:\Users\Lenovo\Documents\ChatGPT\知海"
-$logPath = Join-Path $projectPath ".wrangler\logs\autostart.log"
+$projectPath = Split-Path -Parent $PSScriptRoot
 $stdoutPath = Join-Path $projectPath ".local-server-out.txt"
 $stderrPath = Join-Path $projectPath ".local-server-err.txt"
 
@@ -10,10 +9,9 @@ if ($listener) {
     exit 0
 }
 
-$env:WRANGLER_LOG_PATH = $logPath
 Start-Process `
-    -FilePath "npm.cmd" `
-    -ArgumentList "exec", "--", "wrangler", "dev", "--config", "wrangler.local.jsonc", "--local", "--port", "8787" `
+    -FilePath "D:\Users\Lenovo\tools\node-v22.22.1-win-x64\npx.cmd" `
+    -ArgumentList "vinext", "dev", "--port", "8787" `
     -WorkingDirectory $projectPath `
     -RedirectStandardOutput $stdoutPath `
     -RedirectStandardError $stderrPath `

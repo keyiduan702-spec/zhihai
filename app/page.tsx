@@ -58,8 +58,7 @@ export default function Home() {
           <div className="avatar">少</div><div><strong>少年游</strong><small>连续学习 18 天</small></div>
           <button className="more-button" aria-label="更多设置" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>···</button>
           {menuOpen && <><button className="menu-dismiss" aria-label="关闭个人菜单" onClick={() => setMenuOpen(false)} /><div className="profile-menu" role="menu">
-            {["账号设置", "修改密码", "微信提醒设置"].map((item) => <button role="menuitem" key={item} onClick={() => setMenuOpen(false)}>{item}<span>›</span></button>)}
-            <button role="menuitem" className="logout" onClick={() => setMenuOpen(false)}>退出登录</button>
+            <button role="menuitem" onClick={() => setMenuOpen(false)}>微信提醒设置<span>›</span></button>
           </div></>}
         </div>
       </aside>
